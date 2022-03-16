@@ -65,6 +65,15 @@ for target_version in "${versions[@]}"; do
         echo "Error on check mongo status before upgrade target_version $target_version"
         exit 1
     fi
+
+    echo "Generating mongo upgrade plan_inventory ..."
+    if ! python $cur/mongoup.py gen_plan_inventory $target_version; then
+        echo "Error on gen_plan_inventory for target_version $target_version"
+        exit 1
+    fi
+
+    cat $cur/plan_inventory
+
     if [[ $target_version == "3.4" ]]; then
         echo "start upgrade mongodb 3.2 to 3.4"
         ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_old_version.yaml \
@@ -88,13 +97,6 @@ for target_version in "${versions[@]}"; do
 #        exit 1
 #    fi
 
-    echo "Generating mongo upgrade plan_inventory ..."
-    if ! python $cur/mongoup.py gen_plan_inventory $target_version; then
-        echo "Error on gen_plan_inventory for target_version $target_version"
-        exit 1
-    fi
-
-    cat $cur/plan_inventory
 
     if [[ $target_version != "3.4" ]]; then
         echo "start upgrade mongodb $cur_version to $target_version"
@@ -127,3 +129,4 @@ if [[ -e /usr/lib/systemd/system/elf-vm-monitor.service ]]; then
 fi
 
 echo "Upgrade MongoDB Cluster Success."
+
