@@ -137,7 +137,7 @@ def step_down_mongo_primary(mongo_ip):
     cmd = "mongo --host {} --norc --eval 'rs.stepDown()'".format(mongo_ip)
     container_id = get_container_id()
     if container_id:
-        cmd = "podman exec -it {} ".format(image_name[0]) + cmd
+        cmd = "podman exec -it {} ".format(container_id) + cmd
 
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
@@ -150,7 +150,7 @@ def set_compatibility_version(data_ip, version):
     cmd = "mongo --host {} --quiet --norc --eval ".format(data_ip)
     container_id = get_container_id()
     if container_id:
-        cmd = "podman run --rm -it --network host {} ".format(image_name[0]) + cmd
+        cmd = "podman run --rm -it --network host {} ".format(container_id) + cmd
 
     exec_cmd = cmd + '"db.adminCommand( { setFeatureCompatibilityVersion:' + "'{}'".format(version) + '} )"'
     process = subprocess.Popen(exec_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -434,10 +434,9 @@ def _step_down_old(next_v):
             return False
 
     v = version_map.get(next_v)
-    pre_v = version_map.get(v)
     primary = {item["db_version"][:3]: item for item in mongo_list if item["state"] == STATE_PRIMARY}
-    if pre_v != v and pre_v in primary:
-        old = primary.get(pre_v)
+    if v in primary:
+        old = primary.get(v)
         msg = "Prepare to Step-Down {} {} {}"
         logging.info(msg.format(old["mongo_ip"], old["db_version"], old["state"]))
         return step_down_mongo_primary(old["mongo_ip"])

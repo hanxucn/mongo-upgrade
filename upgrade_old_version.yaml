@@ -6,7 +6,7 @@
     - name: get env package info
       package_facts:
         manager: auto
-    - name: Install mongodb-base16 rpm package
+    - name: Install mongodb-base16  rpm package
       shell: "rpm -ivh {{ src_path }}/mongodb-base16-*.rpm"
       args:
         warn: false

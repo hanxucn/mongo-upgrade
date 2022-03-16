@@ -3,7 +3,7 @@
   gather_facts: no
   tasks:
     - name: Set Mongo Feature Compatibility Version
-      shell: "python {{ src_path }}/mongoup.py set_compatibility_version_for_upgrade {{ current_version }}"
+      shell: "python {{ src_path }}/mongoup.py set_compatibility_version_for_upgrade {{ target_version }}"
 
 - hosts: secondary_to_upgrade:primary_to_upgrade
   become: yes
@@ -23,14 +23,6 @@
   become: yes
   gather_facts: no
   tasks:
-#    - name: Stop following mongo secondary node
-#      systemd:
-#        name: mongod.service
-#        state: stopped
-#    - name: Clean mongo data directory
-#      shell: "/bin/rm -rf /var/lib/mongodb/*"
-#      args:
-#        warn: false
     - name: Upgrade mongo rpm package
       shell: "rpm -Uvh {{ src_path }}/mongodb-server-{{ target_version }}*.rpm"
       args:
@@ -53,7 +45,7 @@
   gather_facts: no
   tasks:
     - name: Stepdown current primary node
-      shell: "python $cur/mongoup.py step_down_old_version_primary {{ current_version }}"
+      shell: "python $cur/mongoup.py step_down_old_version_primary {{ target_version }}"
       args:
         warn: false
     - name: Clean mongo data directory
