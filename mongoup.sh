@@ -56,9 +56,7 @@ if [ ! $? -eq 0 ]; then
 fi
 echo "Mongo upgrade road map: ${versions[*]}"
 
-current_version="3.2"
-base_16_mongo=("3.6" "4.0")
-base_18_mongo=("4.2" "4.4" "5.0")
+cur_version="3.2"
 for target_version in "${versions[@]}"; do
     echo "Start mongo upgrade round for target_version $target_version"
 
@@ -67,7 +65,7 @@ for target_version in "${versions[@]}"; do
         echo "Error on check mongo status before upgrade target_version $target_version"
         exit 1
     fi
-    if $target_version == "3.4"; then
+    if [[ $target_version == "3.4" ]]; then
         echo "start upgrade mongodb 3.2 to 3.4"
         ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_old_version.yaml \
         --extra-vars "target_version=$target_version src_path=$cur"
@@ -99,9 +97,9 @@ for target_version in "${versions[@]}"; do
     cat $cur/plan_inventory
 
     if [[ $target_version != "3.4" ]]; then
-        echo "start upgrade mongodb $current_version to $target_version"
+        echo "start upgrade mongodb $cur_version to $target_version"
         ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_one_version.yaml \
-        --extra-vars "target_version=$target_version src_path=$cur current_version=$current_version"
+        --extra-vars "target_version=$target_version src_path=$cur current_version=$cur_version"
         if [ ! $? -eq 0 ]; then
             echo "Error on upgrade cluster mongo target_version to $target_version."
             exit 1
@@ -109,7 +107,7 @@ for target_version in "${versions[@]}"; do
         continue
     fi
 
-    $current_version=$target_version
+    cur_version=$target_version
 done
 
 echo "Clean upgrade files after upgrade success ..."

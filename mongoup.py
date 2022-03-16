@@ -103,7 +103,7 @@ def get_mongo_rs_status(with_db_version=True):
     ).strip()
     container_id = get_container_id()
     if container_id:
-        cmd = "podman exec -it {} ".format(image_name[0]) + cmd
+        cmd = "podman exec -it {} ".format(container_id) + cmd
 
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
