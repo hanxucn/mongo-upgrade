@@ -25,11 +25,20 @@ for node in "${mongo_list[@]}"; do
     fi
 done
 
+mongo_list_len=${#mongo_list[@]}
+need_down_num=$((mongo_list_len - 3))
+if [[ $mongo_list_len -gt 3 ]]; then
+    echo "mongo cluster greater to 3, will use 3 node to upgrade"
+
+    down_secondary_node=($(python $cur/mongoup.py cmd_get_down_secondary_node $need_down_num))
+fi
+
 echo "Generating mongo cluster ansible inventory ..."
-if ! python $cur/mongoup.py gen_mongo_cluster_inventory; then
+if ! python $cur/mongoup.py gen_mongo_cluster_inventory $need_down_num; then
     echo "Error on gen_mongo_cluster_inventory."
     exit 1
 fi
+
 cat $cur/mongo_cluster_inventory
 
 echo "Sync mongo package to master node and gen new mongo conf ..."
@@ -83,19 +92,6 @@ for target_version in "${versions[@]}"; do
         fi
         continue
     fi
-
-#    echo "Step-Down any older version mongo Primary ..."
-#    if ! python $cur/mongoup.py step_down_old_version_primary $target_version; then
-#        echo "Error on step_down_old_version_primary before upgrade target_version $target_version"
-#        exit 1
-#    fi
-
-#    echo "Wait mongo cluster status before upgrade ..."
-#    if ! python $cur/mongoup.py loop_check_for $target_version; then
-#        echo "Error on check mongo status before upgrade target_version $target_version"
-#        exit 1
-#    fi
-
 
     if [[ $target_version != "3.4" ]]; then
         echo "start upgrade mongodb to $target_version"

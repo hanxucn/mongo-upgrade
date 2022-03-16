@@ -28,3 +28,15 @@
       systemd:
         name: master-monitor
         state: stopped
+
+- hosts: secondary_to_down
+  serial: 1
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Stop larger than 3 secondary node
+      systemd:
+        name: mongod
+        state: stopped
+    - name: clean up mongodb data
+      shell: "rm -rf /var/lib/mongo/*"

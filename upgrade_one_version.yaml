@@ -37,7 +37,7 @@
       register: result
       until: result.rc == 0
       retries: 120
-      delay: 10
+      delay: 5
 
 - hosts: primary_to_upgrade
   serial: 1
@@ -66,4 +66,4 @@
       register: result
       until: result.rc == 0
       retries: 120
-      delay: 10
+      delay: 5

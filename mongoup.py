@@ -188,7 +188,7 @@ def cmd_get_mongo_list(*args):
 
 
 @register_action
-def gen_mongo_cluster_inventory(*args):
+def gen_mongo_cluster_inventory(need_down_num, *args):
     mongo_list = get_mongo_rs_status(with_db_version=False)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status()")
@@ -211,6 +211,18 @@ def gen_mongo_cluster_inventory(*args):
 
     conf_str += "[current_node]\n"
     conf_str += "{} {}\n".format(get_current_data_ip(), INVENTORY_IP_ATTACHMENT)
+
+    need_down_num = int(need_down_num)
+    if need_down_num > 0:
+        secondary = [item for item in mongo_list if item["state"] == STATE_SECONDARY]
+        if not secondary:
+            logging.error("mongo secondary not found.")
+            return False
+
+        secondary_to_down = secondary[:need_down_num]
+        conf_str += "[secondary_to_down]\n"
+        for item in secondary_to_down:
+            conf_str += "{} {}\n".format(item["mongo_ip"], INVENTORY_IP_ATTACHMENT)
 
     with open(os.path.join(os.getcwd(), "mongo_cluster_inventory"), "w") as f:
         f.write(conf_str)
@@ -382,9 +394,6 @@ def gen_plan_inventory(next_v, *args):
         return False
 
     v = version_map.get(next_v)
-    # pre_v = version_map.get(v)
-    latest_v = sorted(version_map.keys())[-1]
-
     mongo_list = get_mongo_rs_status()
     if not mongo_list:
         logging.error("Failed to get mongo rs.status() and db.version()")
@@ -497,6 +506,28 @@ def set_cluster_compatibility_version(version, *args):
 
     primary_ip = mongo_primary[0]["mongo_ip"]
     return set_compatibility_version(primary_ip, version)
+
+
+@register_action
+def cmd_get_down_secondary_node(num, *args):
+    mongo_list = get_mongo_rs_status()
+    if not mongo_list:
+        logging.error("Failed to get mongo rs.status()")
+        return False
+
+    secondary = [item for item in mongo_list if item["state"] == STATE_SECONDARY]
+    if not secondary:
+        logging.error("mongo secondary not found.")
+        return False
+
+    secondary_to_down = secondary[:num]
+    conf_str = "[secondary_to_down]\n"
+    for item in secondary_to_down:
+        conf_str += "{} {}\n".format(item["mongo_ip"], INVENTORY_IP_ATTACHMENT)
+
+    with open(os.path.join(os.getcwd(), "plan_inventory"), "w") as f:
+        f.write(conf_str)
+    return True
 
 
 def main():
