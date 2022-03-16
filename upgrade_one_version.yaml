@@ -9,11 +9,14 @@
   become: yes
   gather_facts: no
   tasks:
-    - name: install mongodb-base18 when version equal 4.0
+    - name: get env package info
+      package_facts:
+        manager: auto
+    - name: Install mongodb-base18 rpm package
       shell: "rpm -ivh {{ src_path }}/mongodb-base18-*.rpm"
       args:
         warn: false
-      when: "{{ current_version }} == '4.0'"
+      when: '"mongodb-base18" not in ansible_facts.packages'
 
 - hosts: secondary_to_upgrade
   serial: 1
