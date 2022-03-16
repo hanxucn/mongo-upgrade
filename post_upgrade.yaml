@@ -1,0 +1,17 @@
+- hosts: mongo_cluster:!current_node
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Clean upgrade files
+      file:
+        state: absent
+        path: "{{ src_path }}"
+
+- hosts: witness
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Start witness master-monitor.service
+      systemd:
+        name: master-monitor
+        state: started

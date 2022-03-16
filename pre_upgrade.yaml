@@ -1,0 +1,30 @@
+- hosts: mongo_cluster:!current_node
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Dispatch mongo packages
+      synchronize:
+        src: "{{ src_path }}"
+        dest: "{{ dst_path }}"
+
+- hosts: mongo_cluster
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Backup mongo config file on all master node
+      shell: "cp /etc/mongod.conf {{ src_path }}/"
+    - name: Gen new mongo config file on all master node
+      shell: "python {{ src_path }}/mongoup.py gen_new_mongo_conf"
+    - name: Disable logrotate for mongod on all master node
+      file:
+        state: absent
+        path: /etc/logrotate.d/mongodb
+
+- hosts: witness
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Stop witness master-monitor.service
+      systemd:
+        name: master-monitor
+        state: stopped

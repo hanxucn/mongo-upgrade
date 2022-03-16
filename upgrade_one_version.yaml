@@ -1,0 +1,74 @@
+- hosts: primary_to_upgrade
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Set Mongo Feature Compatibility Version
+      shell: "python {{ src_path }}/mongoup.py set_compatibility_version_for_upgrade {{ current_version }}"
+
+- hosts: secondary_to_upgrade:primary_to_upgrade
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: install mongodb-base18 when version equal 4.0
+      shell: "rpm -ivh {{ src_path }}/mongodb-base18-*.rpm"
+      args:
+        warn: false
+      when: "{{ current_version }} == '4.0'"
+
+- hosts: secondary_to_upgrade
+  serial: 1
+  become: yes
+  gather_facts: no
+  tasks:
+#    - name: Stop following mongo secondary node
+#      systemd:
+#        name: mongod.service
+#        state: stopped
+#    - name: Clean mongo data directory
+#      shell: "/bin/rm -rf /var/lib/mongodb/*"
+#      args:
+#        warn: false
+    - name: Upgrade mongo rpm package
+      shell: "rpm -Uvh {{ src_path }}/mongodb-server-{{ target_version }}*.rpm"
+      args:
+        warn: false
+    - name: Restart mongod.service
+      systemd:
+        name: mongod.service
+        state: restarted
+        daemon_reload: yes
+    - name: Wait for mongo cluster status, Retry for 120 times
+      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
+      register: result
+      until: result.rc == 0
+      retries: 120
+      delay: 10
+
+- hosts: primary_to_upgrade
+  serial: 1
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Stepdown current primary node
+      shell: "python $cur/mongoup.py step_down_old_version_primary {{ current_version }}"
+      args:
+        warn: false
+    - name: Clean mongo data directory
+      shell: "/bin/rm -rf /var/lib/mongodb/*"
+      args:
+        warn: false
+    - name: Upgrade mongo rpm package
+      shell: "rpm -Uvh {{ src_path }}/mongodb-server-{{ target_version }}*.rpm"
+      args:
+        warn: false
+    - name: Restart mongod.service
+      systemd:
+        name: mongod.service
+        state: restarted
+        daemon_reload: yes
+    - name: Wait for mongo cluster status, Retry for 120 times
+      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
+      register: result
+      until: result.rc == 0
+      retries: 120
+      delay: 10
