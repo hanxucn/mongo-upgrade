@@ -45,7 +45,7 @@
   gather_facts: no
   tasks:
     - name: Stepdown current primary node
-      shell: "python $cur/mongoup.py step_down_old_version_primary {{ target_version }}"
+      shell: "python {{ src_path }}/mongoup.py step_down_old_version_primary {{ target_version }}"
       args:
         warn: false
     - name: Clean mongo data directory

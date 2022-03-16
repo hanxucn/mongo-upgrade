@@ -150,14 +150,14 @@ def set_compatibility_version(data_ip, version):
     cmd = "mongo --host {} --quiet --norc --eval ".format(data_ip)
     container_id = get_container_id()
     if container_id:
-        cmd = "podman run --rm -it --network host {} ".format(container_id) + cmd
+        cmd = "podman exec -it {} ".format(container_id) + cmd
 
     exec_cmd = cmd + '"db.adminCommand( { setFeatureCompatibilityVersion:' + "'{}'".format(version) + '} )"'
     process = subprocess.Popen(exec_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         msg = "setFeatureCompatibilityVersion failed on mongo {}, stdout: {} stderr: {} rc: {}"
-        logging.info(msg.format(data_ip, stderr, process.returncode))
+        logging.info(msg.format(data_ip, stdout, stderr, process.returncode))
         return False
 
     _eval = '"db.adminCommand({ getParameter: 1, featureCompatibilityVersion: 1 }).featureCompatibilityVersion"'
