@@ -36,6 +36,7 @@ AARCH64_VERSION_MAP = {
 
 STATE_PRIMARY = "PRIMARY"
 STATE_SECONDARY = "SECONDARY"
+STATE_NOLIVE = "(not reachable/healthy)"
 INVENTORY_IP_ATTACHMENT = "ansible_ssh_user=smartx ansible_ssh_private_key_file=/home/smartx/.ssh/smartx_id_rsa"
 
 action_dict = {}
@@ -79,6 +80,7 @@ def get_container_id():
     container_id = stdout.strip()
     return container_id
 
+
 def get_mongo_db_version(mongo_ip):
     cmd = 'mongo --host {} --quiet --norc --eval "db.version()"'.format(mongo_ip)
     container_id = get_container_id()
@@ -95,7 +97,23 @@ def get_mongo_db_version(mongo_ip):
     return stdout.strip()
 
 
-def get_mongo_rs_status(with_db_version=True):
+def get_expected_mongo_nodes(down_ips):
+    parser = ConfigParser.SafeConfigParser()
+    parser.read("/etc/zbs/zbs.conf")
+    cluster_storage = parser.get("cluster", "mongo")
+    expected_mongo_nodes = cluster_storage.split(",")
+    return expected_mongo_nodes
+
+
+def get_mongo_rs_status(with_db_version=True, down_node=""):
+    # cluster_live_storage_ips = get_live_node_data_ip()
+    # cmd_str = """\
+    # mongo --host %s --quiet --norc --eval "rs.status().members.forEach(function(i){ print(i.name + '@' + i.stateStr) })"
+    # """ % cluster_live_storage_ips[0]
+    # cmd = textwrap.dedent(cmd_str).strip()
+    down_ips = []
+    if down_node:
+        down_ips = down_node.split(",")
     cmd = textwrap.dedent(
         """
         mongo --quiet --norc --eval "rs.status().members.forEach(function(i){ print(i.name + '@' + i.stateStr) })"
@@ -113,10 +131,16 @@ def get_mongo_rs_status(with_db_version=True):
         return []
 
     res = []
+
     for line in stdout.strip().split("\n"):
         mongo_ip_port, state_str = line.strip().split("@")
         mongo_ip, _ = mongo_ip_port.split(":")
-        db_version = get_mongo_db_version(mongo_ip) if with_db_version else ""
+        if mongo_ip in down_ips:
+            continue
+        if with_db_version and state_str in [STATE_PRIMARY, STATE_SECONDARY]:
+            db_version = get_mongo_db_version(mongo_ip)
+        else:
+            db_version = ""
         res.append(
             {
                 "mongo_ip": mongo_ip,
@@ -188,7 +212,25 @@ def cmd_get_mongo_list(*args):
 
 
 @register_action
-def gen_mongo_cluster_inventory(need_down_num, *args):
+def cmd_get_pre_down_mongo(*args):
+    mongo_list = get_mongo_rs_status()
+    current_ip = get_current_data_ip()
+    # expect_mongo_nodes = get_expected_mongo_nodes()
+    down_mongo = []
+    if len(mongo_list) > 3:
+        down_num = len(mongo_list) - 3
+        for item in mongo_list:
+            if len(down_mongo) == down_num:
+                break
+            if item["state"] == STATE_SECONDARY and item["mongo_ip"] != current_ip:
+                down_mongo.append(item["mongo_ip"])
+        print(",".join(down_mongo))
+    else:
+        print("")
+
+
+@register_action
+def gen_mongo_cluster_inventory(down_node, *args):
     mongo_list = get_mongo_rs_status(with_db_version=False)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status()")
@@ -212,17 +254,11 @@ def gen_mongo_cluster_inventory(need_down_num, *args):
     conf_str += "[current_node]\n"
     conf_str += "{} {}\n".format(get_current_data_ip(), INVENTORY_IP_ATTACHMENT)
 
-    need_down_num = int(need_down_num)
-    if need_down_num > 0:
-        secondary = [item for item in mongo_list if item["state"] == STATE_SECONDARY]
-        if not secondary:
-            logging.error("mongo secondary not found.")
-            return False
-
-        secondary_to_down = secondary[:need_down_num]
+    if down_node:
+        secondary_to_down = down_node.split(",")
         conf_str += "[secondary_to_down]\n"
-        for item in secondary_to_down:
-            conf_str += "{} {}\n".format(item["mongo_ip"], INVENTORY_IP_ATTACHMENT)
+        for down_ip in secondary_to_down:
+            conf_str += "{} {}\n".format(down_ip, INVENTORY_IP_ATTACHMENT)
 
     with open(os.path.join(os.getcwd(), "mongo_cluster_inventory"), "w") as f:
         f.write(conf_str)
@@ -230,14 +266,14 @@ def gen_mongo_cluster_inventory(need_down_num, *args):
 
 
 @register_action
-def cmd_get_upgrade_road_map(*args):
+def cmd_get_upgrade_road_map(down_node="", *args):
     version_map = {
         "x86_64": X86_VERSION_MAP,
         "aarch64": AARCH64_VERSION_MAP,
     }.get(platform.machine())
     full_version_list = sorted(version_map.keys())
 
-    mongo_list = get_mongo_rs_status()
+    mongo_list = get_mongo_rs_status(down_node=down_node)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status() and db.version()")
         return False
@@ -320,10 +356,10 @@ def _check_cluster_version(next_v, mongo_list):
 
 
 @register_action
-def loop_check_for(target_version, *args):
+def loop_check_for(target_version, down_node, *args):
     for r in range(120):
         logging.info("check mongo rs.status(), round {}".format(r))
-        mongo_list = get_mongo_rs_status()
+        mongo_list = get_mongo_rs_status(down_node=down_node)
         if not mongo_list:
             sleep(10)
             continue
@@ -362,8 +398,8 @@ def loop_check_for(target_version, *args):
 
 
 @register_action
-def check_mongo_cluster_states(*args):
-    mongo_list = get_mongo_rs_status()
+def check_mongo_cluster_states(down_node="", *args):
+    mongo_list = get_mongo_rs_status(down_node=down_node)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status()")
         return False
@@ -384,7 +420,7 @@ def check_mongo_cluster_states(*args):
 
 
 @register_action
-def gen_plan_inventory(next_v, *args):
+def gen_plan_inventory(next_v, down_mongo, *args):
     version_map = {
         "x86_64": X86_VERSION_MAP,
         "aarch64": AARCH64_VERSION_MAP,
@@ -394,7 +430,7 @@ def gen_plan_inventory(next_v, *args):
         return False
 
     v = version_map.get(next_v)
-    mongo_list = get_mongo_rs_status()
+    mongo_list = get_mongo_rs_status(down_node=down_mongo)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status() and db.version()")
         return False
@@ -453,7 +489,7 @@ def _step_down_old(next_v):
 
 
 @register_action
-def step_down_old_version_primary(next_v, *args):
+def step_down_old_version_primary(next_v, down_node="", *args):
     # expected false before mongo v4.2
     if _step_down_old(next_v):
         return True
@@ -463,7 +499,7 @@ def step_down_old_version_primary(next_v, *args):
     for i in range(30):
         logging.info("Wait new primary after Step-Down old version, round {}".format(i))
         sleep(10)
-        if check_mongo_cluster_states():
+        if check_mongo_cluster_states(down_node=down_node):
             primary_ok = True
             break
 

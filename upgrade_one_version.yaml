@@ -33,7 +33,7 @@
         state: restarted
         daemon_reload: yes
     - name: Wait for mongo cluster status, Retry for 120 times
-      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
+      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states {{ down_node }}"
       register: result
       until: result.rc == 0
       retries: 120
@@ -45,7 +45,7 @@
   gather_facts: no
   tasks:
     - name: Stepdown current primary node
-      shell: "python {{ src_path }}/mongoup.py step_down_old_version_primary {{ target_version }}"
+      shell: "python {{ src_path }}/mongoup.py step_down_old_version_primary {{ target_version }} {{ down_node }}"
       args:
         warn: false
     - name: Clean mongo data directory
@@ -62,7 +62,7 @@
         state: restarted
         daemon_reload: yes
     - name: Wait for mongo cluster status, Retry for 120 times
-      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
+      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states {{ down_node }}"
       register: result
       until: result.rc == 0
       retries: 120

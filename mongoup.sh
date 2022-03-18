@@ -26,15 +26,16 @@ for node in "${mongo_list[@]}"; do
 done
 
 mongo_list_len=${#mongo_list[@]}
-need_down_num=$((mongo_list_len - 3))
 if [[ $mongo_list_len -gt 3 ]]; then
     echo "mongo cluster greater to 3, will use 3 node to upgrade"
 
-    down_secondary_node=($(python $cur/mongoup.py cmd_get_down_secondary_node $need_down_num))
+    down_secondary_node=$(python $cur/mongoup.py cmd_get_pre_down_mongo)
+else
+    down_secondary_node=""
 fi
 
 echo "Generating mongo cluster ansible inventory ..."
-if ! python $cur/mongoup.py gen_mongo_cluster_inventory $need_down_num; then
+if ! python $cur/mongoup.py gen_mongo_cluster_inventory "$down_secondary_node"; then
     echo "Error on gen_mongo_cluster_inventory."
     exit 1
 fi
@@ -58,7 +59,7 @@ if [[ -e /usr/lib/systemd/system/elf-vm-monitor.service ]]; then
 fi
 
 echo "Generating mongo upgrade road map ..."
-versions=($(python $cur/mongoup.py cmd_get_upgrade_road_map))
+versions=($(python $cur/mongoup.py cmd_get_upgrade_road_map $down_secondary_node))
 if [ ! $? -eq 0 ]; then
     echo "Error on get upgrade version road map."
     exit 1
@@ -69,13 +70,13 @@ for target_version in "${versions[@]}"; do
     echo "Start mongo upgrade round for target_version $target_version"
 
     echo "Check mongo cluster status before upgrade ..."
-    if ! python $cur/mongoup.py loop_check_for $target_version; then
+    if ! python $cur/mongoup.py loop_check_for $target_version $down_secondary_node; then
         echo "Error on check mongo status before upgrade target_version $target_version"
         exit 1
     fi
 
     echo "Generating mongo upgrade plan_inventory ..."
-    if ! python $cur/mongoup.py gen_plan_inventory $target_version; then
+    if ! python $cur/mongoup.py gen_plan_inventory $target_version $down_secondary_node; then
         echo "Error on gen_plan_inventory for target_version $target_version"
         exit 1
     fi
@@ -85,7 +86,7 @@ for target_version in "${versions[@]}"; do
     if [[ $target_version == "3.4" ]]; then
         echo "start upgrade mongodb 3.2 to 3.4"
         ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_old_version.yaml \
-        --extra-vars "target_version=$target_version src_path=$cur"
+        --extra-vars "target_version=$target_version src_path=$cur down_node=$down_secondary_node"
         if [ ! $? -eq 0 ]; then
             echo "Error on upgrade cluster mongo target_version to $target_version."
             exit 1
@@ -96,7 +97,7 @@ for target_version in "${versions[@]}"; do
     if [[ $target_version != "3.4" ]]; then
         echo "start upgrade mongodb to $target_version"
         ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_one_version.yaml \
-        --extra-vars "target_version=$target_version src_path=$cur"
+        --extra-vars "target_version=$target_version src_path=$cur down_node=$down_secondary_node"
         if [ ! $? -eq 0 ]; then
             echo "Error on upgrade cluster mongo target_version to $target_version."
             exit 1
