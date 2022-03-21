@@ -39,4 +39,4 @@
         name: mongod
         state: stopped
     - name: clean up mongodb data
-      shell: "rm -rf /var/lib/mongo/*"
+      shell: "rm -rf /var/lib/mongodb/*"

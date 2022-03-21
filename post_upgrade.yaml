@@ -1,21 +1,3 @@
-- hosts: mongo_cluster:!current_node
-  become: yes
-  gather_facts: no
-  tasks:
-    - name: Clean upgrade files
-      file:
-        state: absent
-        path: "{{ src_path }}"
-
-- hosts: witness
-  become: yes
-  gather_facts: no
-  tasks:
-    - name: Start witness master-monitor.service
-      systemd:
-        name: master-monitor
-        state: started
-
 - hosts: secondary_to_down
   serial: 1
   become: yes
@@ -38,9 +20,32 @@
         name: mongod.service
         state: restarted
         daemon_reload: yes
-    - name: Wait for mongo cluster status, Retry for 120 times
-      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
-      register: result
-      until: result.rc == 0
-      retries: 120
-      delay: 5
+
+- hosts: localhost
+  become: yes
+  gather_facts: no
+  tasks:
+  - name: Wait for mongo cluster status, Retry for 120 times
+    shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states"
+    register: result
+    until: result.rc == 0
+    retries: 120
+    delay: 5
+
+- hosts: mongo_cluster:!current_node
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Clean upgrade files
+      file:
+        state: absent
+        path: "{{ src_path }}"
+
+- hosts: witness
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Start witness master-monitor.service
+      systemd:
+        name: master-monitor
+        state: started

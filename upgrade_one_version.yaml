@@ -3,7 +3,7 @@
   gather_facts: no
   tasks:
     - name: Set Mongo Feature Compatibility Version
-      shell: "python {{ src_path }}/mongoup.py set_compatibility_version_for_upgrade {{ target_version }}"
+      shell: "python {{ src_path }}/mongoup.py set_compatibility_version_for_upgrade {{ target_version }} {{ down_node }}"
 
 - hosts: secondary_to_upgrade:primary_to_upgrade
   become: yes
@@ -48,10 +48,12 @@
       shell: "python {{ src_path }}/mongoup.py step_down_old_version_primary {{ target_version }} {{ down_node }}"
       args:
         warn: false
-    - name: Clean mongo data directory
-      shell: "/bin/rm -rf /var/lib/mongodb/*"
-      args:
-        warn: false
+    - name: Wait for mongo cluster status, Retry for 120 times
+      shell: "python {{ src_path }}/mongoup.py check_mongo_cluster_states {{ down_node }}"
+      register: result
+      until: result.rc == 0
+      retries: 120
+      delay: 5
     - name: Upgrade mongo rpm package
       shell: "rpm -Uvh {{ src_path }}/mongodb-server-{{ target_version }}*.rpm"
       args:

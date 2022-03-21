@@ -460,7 +460,7 @@ def gen_plan_inventory(next_v, down_mongo, *args):
     return True
 
 
-def _step_down_old(next_v):
+def _step_down_old(next_v, down_node=""):
     version_map = {
         "x86_64": X86_VERSION_MAP,
         "aarch64": AARCH64_VERSION_MAP,
@@ -469,12 +469,12 @@ def _step_down_old(next_v):
         logging.error("Not support upgrade for target version: {}".format(next_v))
         return False
 
-    mongo_list = get_mongo_rs_status()
+    mongo_list = get_mongo_rs_status(down_node=down_node)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status() and db.version()")
         return False
     for item in mongo_list:
-        if not item.get("db_version"):
+        if not item.get("db_version") and item["mongo_ip"] not in down_node:
             logging.error("Failed to get db.version() from {}".format(item["mongo_ip"]))
             return False
 
@@ -491,7 +491,7 @@ def _step_down_old(next_v):
 @register_action
 def step_down_old_version_primary(next_v, down_node="", *args):
     # expected false before mongo v4.2
-    if _step_down_old(next_v):
+    if _step_down_old(next_v, down_node=down_node):
         return True
 
     # wait primary
@@ -507,11 +507,11 @@ def step_down_old_version_primary(next_v, down_node="", *args):
         return False
 
     # check again
-    return _step_down_old(next_v)
+    return _step_down_old(next_v, down_node=down_node)
 
 
 @register_action
-def set_compatibility_version_for_upgrade(target_version, *args):
+def set_compatibility_version_for_upgrade(target_version, down_node="", *args):
     version_map = {
         "x86_64": X86_VERSION_MAP,
         "aarch64": AARCH64_VERSION_MAP,
@@ -525,12 +525,12 @@ def set_compatibility_version_for_upgrade(target_version, *args):
     if before_version <= "3.2":
         return True
 
-    return set_cluster_compatibility_version(before_version)
+    return set_cluster_compatibility_version(before_version, down_node)
 
 
 @register_action
-def set_cluster_compatibility_version(version, *args):
-    mongo_list = get_mongo_rs_status(with_db_version=False)
+def set_cluster_compatibility_version(version, down_node="", *args):
+    mongo_list = get_mongo_rs_status(with_db_version=False, down_node=down_node)
     if not mongo_list:
         logging.error("Failed to get mongo rs.status()")
         return False
@@ -542,28 +542,6 @@ def set_cluster_compatibility_version(version, *args):
 
     primary_ip = mongo_primary[0]["mongo_ip"]
     return set_compatibility_version(primary_ip, version)
-
-
-@register_action
-def cmd_get_down_secondary_node(num, *args):
-    mongo_list = get_mongo_rs_status()
-    if not mongo_list:
-        logging.error("Failed to get mongo rs.status()")
-        return False
-
-    secondary = [item for item in mongo_list if item["state"] == STATE_SECONDARY]
-    if not secondary:
-        logging.error("mongo secondary not found.")
-        return False
-
-    secondary_to_down = secondary[:num]
-    conf_str = "[secondary_to_down]\n"
-    for item in secondary_to_down:
-        conf_str += "{} {}\n".format(item["mongo_ip"], INVENTORY_IP_ATTACHMENT)
-
-    with open(os.path.join(os.getcwd(), "plan_inventory"), "w") as f:
-        f.write(conf_str)
-    return True
 
 
 def main():
