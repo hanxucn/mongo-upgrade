@@ -356,7 +356,7 @@ def _check_cluster_version(next_v, mongo_list):
 
 
 @register_action
-def loop_check_for(target_version, down_node, *args):
+def loop_check_for(target_version, down_node="", *args):
     for r in range(120):
         logging.info("check mongo rs.status(), round {}".format(r))
         mongo_list = get_mongo_rs_status(down_node=down_node)
@@ -420,7 +420,7 @@ def check_mongo_cluster_states(down_node="", *args):
 
 
 @register_action
-def gen_plan_inventory(next_v, down_mongo, *args):
+def gen_plan_inventory(next_v, down_mongo="", *args):
     version_map = {
         "x86_64": X86_VERSION_MAP,
         "aarch64": AARCH64_VERSION_MAP,
@@ -455,7 +455,7 @@ def gen_plan_inventory(next_v, down_mongo, *args):
     for item in primary_to_upgrade:
         conf_str += "{} {}\n".format(item["mongo_ip"], INVENTORY_IP_ATTACHMENT)
 
-    with open(os.path.join(os.getcwd(), "plan_inventory"), "w") as f:
+    with open(os.path.join(os.getcwd(), "mongo_plan_inventory"), "w") as f:
         f.write(conf_str)
     return True
 

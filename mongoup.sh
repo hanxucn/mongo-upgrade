@@ -75,17 +75,17 @@ for target_version in "${versions[@]}"; do
         exit 1
     fi
 
-    echo "Generating mongo upgrade plan_inventory ..."
+    echo "Generating mongo upgrade mongo_plan_inventory ..."
     if ! python $cur/mongoup.py gen_plan_inventory $target_version $down_secondary_node; then
         echo "Error on gen_plan_inventory for target_version $target_version"
         exit 1
     fi
 
-    cat $cur/plan_inventory
+    cat $cur/mongo_plan_inventory
 
     if [[ $target_version == "3.4" ]]; then
         echo "start upgrade mongodb 3.2 to 3.4"
-        ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_old_version.yaml \
+        ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/mongo_plan_inventory $cur/upgrade_old_mongo_version.yaml \
         --extra-vars "target_version=$target_version src_path=$cur down_node=$down_secondary_node"
         if [ ! $? -eq 0 ]; then
             echo "Error on upgrade cluster mongo target_version to $target_version."
@@ -96,7 +96,7 @@ for target_version in "${versions[@]}"; do
 
     if [[ $target_version != "3.4" ]]; then
         echo "start upgrade mongodb to $target_version"
-        ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/plan_inventory $cur/upgrade_one_version.yaml \
+        ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i $cur/mongo_plan_inventory $cur/upgrade_normal_mongo_version.yaml \
         --extra-vars "target_version=$target_version src_path=$cur down_node=$down_secondary_node"
         if [ ! $? -eq 0 ]; then
             echo "Error on upgrade cluster mongo target_version to $target_version."
